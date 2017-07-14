@@ -63,8 +63,7 @@ PROGRAM_INFO("Perceptron",
     "data must match.  So you cannot pass a perceptron model trained on 2 "
     "classes and then re-train with a 4-class dataset.  Similarly, attempting "
     "classification on a 3-dimensional dataset with a perceptron that has been "
-    "trained on 8 dimensions will cause an error."
-    );
+    "trained on 8 dimensions will cause an error.");
 
 // When we save a model, we must also save the class mappings.  So we use this
 // auxiliary structure to store both the perceptron and the mapping, and we'll
@@ -92,10 +91,10 @@ class PerceptronModel
 
 // Training parameters.
 PARAM_MATRIX_IN("training", "A matrix containing the training set.", "t");
-PARAM_UMATRIX_IN("labels", "A matrix containing labels for the training set.",
+PARAM_UROW_IN("labels", "A matrix containing labels for the training set.",
     "l");
-PARAM_INT_IN("max_iterations","The maximum number of iterations the perceptron "
-    "is to be run", "n", 1000);
+PARAM_INT_IN("max_iterations", "The maximum number of iterations the "
+    "perceptron is to be run", "n", 1000);
 
 // Model loading/saving.
 PARAM_MODEL_IN(PerceptronModel, "input_model", "Input perceptron model.", "m");
@@ -104,7 +103,7 @@ PARAM_MODEL_OUT(PerceptronModel, "output_model", "Output for trained perceptron"
 
 // Testing/classification parameters.
 PARAM_MATRIX_IN("test", "A matrix containing the test set.", "T");
-PARAM_UMATRIX_OUT("output", "The matrix in which the predicted labels for the"
+PARAM_UROW_OUT("output", "The matrix in which the predicted labels for the"
     " test set will be written.", "o");
 
 int main(int argc, char** argv)
@@ -152,7 +151,7 @@ int main(int argc, char** argv)
         << CLI::GetUnmappedParam<mat>("training");
     if (CLI::HasParam("labels"))
       Log::Info << "' with labels in '"
-          << CLI::GetUnmappedParam<Mat<size_t>>("labels") << "'";
+          << CLI::GetUnmappedParam<Row<size_t>>("labels") << "'";
     else
       Log::Info << "'";
     Log::Info << " for a maximum of " << maxIterations << " iterations."
@@ -161,30 +160,26 @@ int main(int argc, char** argv)
     mat trainingData = std::move(CLI::GetParam<mat>("training"));
 
     // Load labels.
-    Mat<size_t> labelsIn;
+    Row<size_t> labelsIn;
 
     // Did the user pass in labels?
     if (CLI::HasParam("labels"))
     {
-      labelsIn = std::move(CLI::GetParam<arma::Mat<size_t>>("labels"));
+      labelsIn = std::move(CLI::GetParam<Row<size_t>>("labels"));
     }
     else
     {
       // Use the last row of the training data as the labels.
       Log::Info << "Using the last dimension of training set as labels."
           << endl;
-      labelsIn = arma::conv_to<arma::Mat<size_t>>::from(
-          trainingData.row(trainingData.n_rows - 1).t());
+      labelsIn = arma::conv_to<Row<size_t>>::from(
+          trainingData.row(trainingData.n_rows - 1));
       trainingData.shed_row(trainingData.n_rows - 1);
     }
 
-    // Do the labels need to be transposed?
-    if (labelsIn.n_cols == 1)
-      labelsIn = labelsIn.t();
-
     // Normalize the labels.
     Row<size_t> labels;
-    data::NormalizeLabels(labelsIn.row(0), labels, p.Map());
+    data::NormalizeLabels(labelsIn, labels, p.Map());
 
     // Now, if we haven't already created a perceptron, do it.  Otherwise, make
     // sure the dimensions are right, then continue training.
@@ -252,7 +247,7 @@ int main(int argc, char** argv)
 
     // Save the predicted labels.
     if (CLI::HasParam("output"))
-      CLI::GetParam<arma::Mat<size_t>>("output") = std::move(results);
+      CLI::GetParam<arma::Row<size_t>>("output") = std::move(results);
   }
 
   // Lastly, do we need to save the output model?

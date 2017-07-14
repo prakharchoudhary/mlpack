@@ -77,7 +77,7 @@ PROGRAM_INFO("L2-regularized Logistic Regression and Prediction",
 // Training parameters.
 PARAM_MATRIX_IN("training", "A matrix containing the training set (the matrix "
     "of predictors, X).", "t");
-PARAM_UMATRIX_IN("labels", "A matrix containing labels (0 or 1) for the points "
+PARAM_UROW_IN("labels", "A matrix containing labels (0 or 1) for the points "
     "in the training set (y).", "l");
 
 // Optimizer parameters.
@@ -101,7 +101,7 @@ PARAM_MODEL_OUT(LogisticRegression<>, "output_model", "Output for trained "
 
 // Testing.
 PARAM_MATRIX_IN("test", "Matrix containing test dataset.", "T");
-PARAM_UMATRIX_OUT("output", "If --test_file is specified, this matrix is where "
+PARAM_UROW_OUT("output", "If --test_file is specified, this matrix is where "
     "the predictions for the test set will be saved.", "o");
 PARAM_MATRIX_OUT("output_probabilities", "If --test_file is specified, this "
     "matrix is where the class probabilities for the test set will be saved.",
@@ -184,7 +184,6 @@ int main(int argc, char** argv)
 
   // These are the matrices we might use.
   arma::mat regressors;
-  arma::Mat<size_t> responsesMat;
   arma::Row<size_t> responses;
   arma::mat testSet;
   arma::Row<size_t> predictions;
@@ -209,12 +208,7 @@ int main(int argc, char** argv)
   // Check if the responses are in a separate file.
   if (CLI::HasParam("training") && CLI::HasParam("labels"))
   {
-    responsesMat = std::move(CLI::GetParam<arma::Mat<size_t>>("labels"));
-    if (responsesMat.n_cols == 1)
-      responses = responsesMat.col(0).t();
-    else
-      responses = responsesMat.row(0);
-
+    responses = std::move(CLI::GetParam<arma::Row<size_t>>("labels"));
     if (responses.n_cols != regressors.n_cols)
       Log::Fatal << "The labels (--labels_file) must have the same number of "
           << "points as the training dataset (--training_file)." << endl;
@@ -235,31 +229,30 @@ int main(int argc, char** argv)
   // Now, do the training.
   if (CLI::HasParam("training"))
   {
-    LogisticRegressionFunction<> lrf(regressors, responses, model.Parameters());
     if (optimizerType == "sgd")
     {
-      SGD<LogisticRegressionFunction<>> sgdOpt(lrf);
+      SGD<> sgdOpt;
       sgdOpt.MaxIterations() = maxIterations;
       sgdOpt.Tolerance() = tolerance;
       sgdOpt.StepSize() = stepSize;
       Log::Info << "Training model with SGD optimizer." << endl;
 
       // This will train the model.
-      model.Train(sgdOpt);
+      model.Train(regressors, responses, sgdOpt);
     }
     else if (optimizerType == "lbfgs")
     {
-      L_BFGS<LogisticRegressionFunction<>> lbfgsOpt(lrf);
+      L_BFGS lbfgsOpt;
       lbfgsOpt.MaxIterations() = maxIterations;
       lbfgsOpt.MinGradientNorm() = tolerance;
       Log::Info << "Training model with L-BFGS optimizer." << endl;
 
       // This will train the model.
-      model.Train(lbfgsOpt);
+      model.Train(regressors, responses, lbfgsOpt);
     }
     else if (optimizerType == "minibatch-sgd")
     {
-      MiniBatchSGD<LogisticRegressionFunction<>> mbsgdOpt(lrf);
+      MiniBatchSGD mbsgdOpt;
       mbsgdOpt.BatchSize() = batchSize;
       mbsgdOpt.Tolerance() = tolerance;
       mbsgdOpt.StepSize() = stepSize;
@@ -267,7 +260,7 @@ int main(int argc, char** argv)
       Log::Info << "Training model with mini-batch SGD optimizer (batch size "
           << batchSize << ")." << endl;
 
-      model.Train(mbsgdOpt);
+      model.Train(regressors, responses, mbsgdOpt);
     }
   }
 
@@ -283,7 +276,7 @@ int main(int argc, char** argv)
           << CLI::GetUnmappedParam<arma::mat>("test") << "'." << endl;
       model.Classify(testSet, predictions, decisionBoundary);
 
-      CLI::GetParam<arma::Mat<size_t>>("output") = std::move(predictions);
+      CLI::GetParam<arma::Row<size_t>>("output") = std::move(predictions);
     }
 
     if (CLI::HasParam("output_probabilities"))
